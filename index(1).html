@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EcoMap — карта проблем города</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--forest:#1c4532;--leaf:#2f9e5b;--mist:#eef3ee;--ink:#222925;--line:#d5ded6;--new:#d64545;--rev:#e0a100;--done:#2f9e5b}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);background:var(--mist);display:flex;flex-direction:column}
+header{background:var(--forest);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{margin:0;font-size:20px;font-weight:800}
+header p{margin:0;font-size:13px;opacity:.8}
+main{flex:1;display:flex;min-height:0}
+aside{width:320px;background:#fff;border-right:1px solid var(--line);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+#map{flex:1;min-height:0}
+h2{font-size:14px;margin:0 0 8px;color:var(--forest)}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.stat{background:var(--mist);border-radius:8px;padding:8px;text-align:center}
+.stat b{display:block;font-size:20px;color:var(--forest)}
+.stat span{font-size:11px}
+.cats{display:flex;flex-direction:column;gap:3px;font-size:13px}
+.cats div{display:flex;justify-content:space-between}
+select,input,textarea,button{font:inherit}
+select,input[type=text],input[type=url],input[type=password],textarea{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+textarea{min-height:70px;resize:vertical}
+button{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:var(--leaf);color:#fff;font-weight:600}
+button.ghost{background:var(--mist);color:var(--ink)}
+button.danger{background:#fff;color:var(--new);border:1px solid var(--new)}
+:focus-visible{outline:3px solid #7fd1a0;outline-offset:2px}
+.hint{font-size:12px;color:#5b685f;line-height:1.4}
+.formula{background:var(--mist);border-radius:8px;padding:8px;font-size:12px;line-height:1.5}
+.ov{position:fixed;inset:0;background:rgba(20,35,27,.55);display:none;align-items:center;justify-content:center;z-index:2000;padding:12px}
+.ov.open{display:flex}
+.box.wide{max-width:760px}
+header .ghost{background:rgba(255,255,255,.15);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}
+td select{padding:4px}
+.box{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:440px;max-height:94vh;overflow:auto}
+.box h3{margin:0 0 10px;color:var(--forest)}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+.range{display:flex;align-items:center;gap:8px;font-size:13px}
+.range input{flex:1;accent-color:var(--leaf)}
+.pbadge{margin-top:10px;padding:10px;border-radius:8px;background:var(--mist);font-weight:600}
+.row{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+.pop{width:230px;font-size:13px}
+.pop img{width:100%;border-radius:8px;margin:6px 0;max-height:140px;object-fit:cover}
+.pop h4{margin:0 0 4px;font-size:15px;color:var(--forest)}
+.pop .tag{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--mist);font-size:11px;margin-bottom:4px}
+.pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.pin span{transform:rotate(45deg);font-size:16px}
+@media(max-width:760px){
+ main{flex-direction:column-reverse}
+ aside{width:100%;height:42%;border-right:0;border-top:1px solid var(--line)}
+ #map{flex:none;height:58%}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+ <h1>🌿 EcoMap</h1>
+ <p>Нажмите на карту, чтобы отметить проблему в вашем городе</p>
+ <button class="ghost" id="btnAdmin" style="margin-left:auto">Вход для администратора</button>
+</header>
+<main>
+ <aside>
+  <section><button id="btnAdd" style="width:100%">+ Добавить проблему</button><p class="hint" style="margin:6px 0 0">Сначала нажмите на карте место проблемы, затем эту кнопку.</p></section>
+  <section><h2>Статистика</h2>
+   <div class="stats">
+    <div class="stat"><b id="sAll">0</b><span>всего</span></div>
+    <div class="stat"><b id="sWork">0</b><span>в работе</span></div>
+    <div class="stat"><b id="sDone">0</b><span>решено</span></div>
+   </div>
+   <div class="cats" id="sCats" style="margin-top:10px"></div>
+  </section>
+  <section><h2>Самые важные проблемы</h2><ol id="topList" style="margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:4px"></ol></section>
+  <section><h2>Фильтры</h2>
+   <label for="fCat" style="margin-top:0">Категория</label>
+   <select id="fCat"></select>
+   <label for="fSt">Статус</label>
+   <select id="fSt"></select>
+  </section>
+  <section><h2>Как считается приоритет</h2>
+   <div class="formula"><b>P = 0,5·H + 0,3·F + 0,2·S</b><br>H — опасность, F — повторение, S — социальная значимость (каждый от 0 до 10). F считается сам: по числу похожих отметок в радиусе 50 м.<br>P ≥ 7 — высокий, от 4 — средний, ниже — низкий.</div>
+  </section>
+  <section style="display:flex;gap:8px;flex-wrap:wrap">
+   <button class="ghost" id="btnExport">Скачать данные</button>
+   <button class="ghost" id="btnLoc">Моё местоположение</button>
+  </section>
+  <p class="hint" id="modeNote"></p>
+ </aside>
+ <div id="map"></div>
+</main>
+
+<div id="modal" class="ov" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+ <div class="box">
+  <h3 id="mTitle">Новая проблема</h3>
+  <div class="hint" id="mCoords"></div>
+  <label for="cat">Категория</label><select id="cat"></select>
+  <label for="desc">Что случилось?</label><textarea id="desc" placeholder="Например: переполнены контейнеры у дома 12"></textarea>
+  <label for="photo">Фото (файл)</label><input type="file" id="photo" accept="image/*">
+  <label for="photoUrl">или ссылка на фото</label><input type="url" id="photoUrl" placeholder="https://...">
+  <div class="hint">Не снимайте лица людей и не указывайте личные данные.</div>
+  <label>Оценка проблемы (0–10)</label>
+  <div class="range">Опасность (H)<input type="range" id="H" min="0" max="10" value="5"><b id="Hv">5</b></div>
+  <div class="hint" id="fAuto"></div>
+  <div class="range">Значимость (S)<input type="range" id="S" min="0" max="10" value="5"><b id="Sv">5</b></div>
+  <div class="pbadge" id="pOut"></div>
+  <div class="row"><button class="ghost" id="mCancel">Отмена</button><button id="mSave">Добавить на карту</button></div>
+ </div>
+</div>
+
+<div id="mLogin" class="ov" role="dialog" aria-modal="true"><div class="box">
+ <h3>Вход для администратора</h3>
+ <label for="lgMail">Почта</label><input type="text" id="lgMail" autocomplete="username">
+ <label for="lgPass">Пароль</label><input type="password" id="lgPass" autocomplete="current-password">
+ <div class="row"><button class="ghost" data-close>Отмена</button><button id="lgGo">Войти</button></div>
+</div></div>
+<div id="mAdmin" class="ov" role="dialog" aria-modal="true"><div class="box wide">
+ <h3>Панель администратора</h3>
+ <div class="hint" id="aNote"></div>
+ <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="ghost" id="aCsv">Скачать таблицу (CSV)</button><button class="ghost" id="aOut">Выйти</button><button class="ghost" data-close style="margin-left:auto">Закрыть</button></div>
+ <div style="overflow:auto;margin-top:10px"><table id="aTable"></table></div>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ===== Настройки ===== */
+const CITY = {lat: 42.9, lng: 71.3667, zoom: 13}; // Тараз. Поменяйте координаты для другого города
+const CATS = {
+  trash: {name: 'Мусор', icon: '🗑️', color: '#7a6a4f'},
+  road: {name: 'Дороги', icon: '🚧', color: '#c0662d'},
+  light: {name: 'Освещение', icon: '💡', color: '#c9a400'},
+  infra: {name: 'Инфраструктура', icon: '🏗️', color: '#4a6fa5'},
+  water: {name: 'Чистота/вода', icon: '💧', color: '#2f86b5'},
+  other: {name: 'Другое', icon: '📍', color: '#6b6f6c'}
+};
+const STATUSES = {
+  new: {name: 'Новый', emoji: '🔴', color: '#d64545'},
+  review: {name: 'На рассмотрении', emoji: '🟡', color: '#e0a100'},
+  done: {name: 'Решено', emoji: '🟢', color: '#2f9e5b'}
+};
+
+/* ===== Подключение к базе данных (Supabase) =====
+   Оставьте поля пустыми — сайт работает в демо-режиме (данные только в браузере).
+   Впишите адрес и публичный ключ проекта Supabase — отметки станут общими для всех. */
+const SUPABASE_URL = 'https://ylextyiqoyzddsntyoap.supabase.co/rest/v1/';  // например: https://abcd1234.supabase.co
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsZXh0eWlxb3l6ZGRzbnR5b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4NTQzMDAsImV4cCI6MjEwOTQzMDMwMH0.GG6lDL-RBtD8Z-H2f8arMIa1iZ4SH9ynIAGRskKBNAM';  // публичный ключ «anon public»
+const CLOUD = !!(SUPABASE_URL && SUPABASE_KEY);
+let session = null;
+let isAdmin = !CLOUD; // в демо-режиме управление доступно всем
+
+const sb = (path, opt = {}) => fetch(SUPABASE_URL + path, {...opt, headers: {
+  apikey: SUPABASE_KEY, Authorization: 'Bearer ' + (session ? session.access_token : SUPABASE_KEY),
+  'Content-Type': 'application/json', Prefer: 'return=minimal'}}).then(r => { if (!r.ok) throw new Error(r.status); return r; });
+const toRow = p => ({id: p.id, category: p.category, description: p.description, photo: p.photo, lat: p.lat, lng: p.lng,
+  status: p.status, h: p.H, f: p.F, s: p.S, priority: p.priority, created_at: p.createdAt});
+const fromRow = r => ({id: r.id, category: r.category, description: r.description, photo: r.photo || '', lat: r.lat, lng: r.lng,
+  status: r.status, H: r.h, F: r.f, S: r.s, priority: Number(r.priority), createdAt: Number(r.created_at)});
+
+const DB = {
+  KEY: 'ecomap_problems_v1',
+  async load() {
+    if (CLOUD) { const r = await fetch(SUPABASE_URL + '/rest/v1/problems?select=*&order=created_at.desc', {headers: {apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY}}); if (!r.ok) throw new Error(r.status); return (await r.json()).map(fromRow); }
+    try { const d = JSON.parse(localStorage.getItem(this.KEY)); if (Array.isArray(d)) return d; } catch (e) {}
+    return [
+      {id: 'ECM-001', category: 'trash', description: 'Пример: переполненные контейнеры во дворе', photo: '', lat: 42.9015, lng: 71.3720, status: 'new', H: 6, F: 4, S: 5, createdAt: Date.now()},
+      {id: 'ECM-002', category: 'light', description: 'Пример: не работает уличный фонарь', photo: '', lat: 42.8960, lng: 71.3610, status: 'review', H: 8, F: 2, S: 5, createdAt: Date.now()}
+    ].map(p => ({...p, priority: calcP(p.H, p.F, p.S)}));
+  },
+  saveLocal() {
+    if (CLOUD) return;
+    try { localStorage.setItem(this.KEY, JSON.stringify(problems)); }
+    catch (e) { alert('Память браузера заполнена. Попробуйте фото поменьше.'); }
+  },
+  async add(p) { if (CLOUD) await sb('/rest/v1/problems', {method: 'POST', body: JSON.stringify(toRow(p))}); problems.push(p); this.saveLocal(); },
+  async setStatus(p) { if (CLOUD) await sb('/rest/v1/problems?id=eq.' + encodeURIComponent(p.id), {method: 'PATCH', body: JSON.stringify({status: p.status})}); this.saveLocal(); },
+  async remove(id) { if (CLOUD) await sb('/rest/v1/problems?id=eq.' + encodeURIComponent(id), {method: 'DELETE'}); problems = problems.filter(x => x.id !== id); this.saveLocal(); }
+};
+
+/* ===== Вспомогательное ===== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const calcP = (H, F, S) => Math.round((0.5 * H + 0.3 * F + 0.2 * S) * 100) / 100;
+const pLabel = p => p >= 7 ? 'высокий' : p >= 4 ? 'средний' : 'низкий';
+const safeUrl = u => /^(https?:|data:image\/)/i.test(u || '') ? u : '';
+
+let problems = [];
+const dist = (a, b, c, d) => {
+  const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
+  return 12742000 * Math.asin(Math.sqrt(h));
+};
+const NEAR = 50; // метров: отметки ближе считаются повторами одной проблемы
+const nearCount = (lat, lng, cat, skipId) => problems.filter(x => x.id !== skipId && x.category === cat && x.status !== 'done' && dist(lat, lng, x.lat, x.lng) <= NEAR).length;
+const fFromCount = n => Math.min(10, 2 + 2 * n); // 0 повторов → 2, 1 → 4, 2 → 6, ... максимум 10
+function recalc() { problems.forEach(p => { p.F = fFromCount(nearCount(p.lat, p.lng, p.category, p.id)); p.priority = calcP(p.H, p.F, p.S); }); }
+const nextId = () => 'ECM-' + String(problems.reduce((m, x) => Math.max(m, parseInt(String(x.id).replace(/\D/g, '')) || 0), 0) + 1).padStart(3, '0');
+async function addWithRetry(p) {
+  for (let i = 0; i < 4; i++) {
+    try { await DB.add(p); return; }
+    catch (e) { if (i === 3 || !CLOUD) throw e; await reload(); p.id = nextId(); } // номер занят другим пользователем — берём следующий
+  }
+}
+let pending = null; // координаты клика
+
+/* ===== Карта ===== */
+const map = L.map('map').setView([CITY.lat, CITY.lng], CITY.zoom);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© участники OpenStreetMap'}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+
+function pinIcon(p) {
+  const c = CATS[p.category] || CATS.other, st = STATUSES[p.status];
+  return L.divIcon({className: '', iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -30],
+    html: `<div class="pin" style="background:${c.color};outline:3px solid ${st.color}"><span>${c.icon}</span></div>`});
+}
+
+function popupFor(p) {
+  const c = CATS[p.category] || CATS.other, el = document.createElement('div');
+  el.className = 'pop';
+  const img = safeUrl(p.photo);
+  el.innerHTML = `<h4>${c.icon} ${esc(c.name)}</h4><div class="hint">${esc(p.id)}</div>
+    <div>${esc(p.description)}</div>
+    ${img ? `<img src="${esc(img)}" alt="Фото проблемы">` : ''}
+    <div class="tag">Приоритет: ${p.priority} (${pLabel(p.priority)})</div>
+    <div class="hint">H ${p.H} · F ${p.F} · S ${p.S}<br>${new Date(p.createdAt).toLocaleDateString('ru-RU')}</div>
+    ${isAdmin ? `<label>Статус</label><select>${statusOpts(p.status)}</select>
+    <div class="row" style="margin-top:8px"><button class="danger">Удалить</button></div>` : `<div class="tag">${STATUSES[p.status].emoji} ${STATUSES[p.status].name}</div>`}`;
+  if (isAdmin) {
+    el.querySelector('select').onchange = e => changeStatus(p, e.target.value);
+    el.querySelector('.danger').onclick = () => removeProblem(p.id);
+  }
+  return el;
+}
+
+function render() {
+  recalc();
+  layer.clearLayers();
+  const fc = $('fCat').value, fs = $('fSt').value;
+  problems.filter(p => (fc === 'all' || p.category === fc) && (fs === 'all' || p.status === fs))
+    .forEach(p => L.marker([p.lat, p.lng], {icon: pinIcon(p)}).bindPopup(() => popupFor(p)).addTo(layer));
+  const done = problems.filter(p => p.status === 'done').length;
+  $('topList').innerHTML = [...problems].filter(p => p.status !== 'done').sort((a, b) => b.priority - a.priority).slice(0, 5)
+    .map(p => `<li><a href="#" data-id="${esc(p.id)}">${(CATS[p.category] || CATS.other).icon} ${esc(p.description.slice(0, 40))}</a> — <b>${p.priority}</b></li>`).join('')
+    || '<li style="list-style:none">Открытых проблем пока нет</li>';
+  $('sAll').textContent = problems.length;
+  $('sDone').textContent = done;
+  $('sWork').textContent = problems.length - done;
+  $('sCats').innerHTML = Object.entries(CATS).map(([k, c]) =>
+    `<div><span>${c.icon} ${c.name}</span><b>${problems.filter(p => p.category === k).length}</b></div>`).join('');
+}
+const statusOpts = sel => Object.entries(STATUSES).map(([k, s]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${s.emoji} ${s.name}</option>`).join('');
+async function reload() { problems = await DB.load(); render(); renderAdmin(); }
+async function guard(fn) {
+  try { await fn(); }
+  catch (e) { alert('Не удалось выполнить действие. Проверьте интернет и войдите как администратор.'); try { await reload(); } catch (x) {} }
+}
+const changeStatus = (p, st) => guard(async () => { p.status = st; await DB.setStatus(p); map.closePopup(); render(); renderAdmin(); });
+const removeProblem = id => { if (confirm('Удалить эту отметку?')) guard(async () => { await DB.remove(id); map.closePopup(); render(); renderAdmin(); }); };
+
+/* ===== Фильтры ===== */
+$('fCat').innerHTML = '<option value="all">Все категории</option>' + Object.entries(CATS).map(([k, c]) => `<option value="${k}">${c.icon} ${c.name}</option>`).join('');
+$('fSt').innerHTML = '<option value="all">Все статусы</option>' + Object.entries(STATUSES).map(([k, s]) => `<option value="${k}">${s.emoji} ${s.name}</option>`).join('');
+$('fCat').onchange = $('fSt').onchange = render;
+$('cat').innerHTML = Object.entries(CATS).map(([k, c]) => `<option value="${k}">${c.icon} ${c.name}</option>`).join('');
+
+/* ===== Форма ===== */
+function updateP() {
+  const H = +$('H').value, S = +$('S').value;
+  const n = pending ? nearCount(pending.lat, pending.lng, $('cat').value, null) : 0, F = fFromCount(n), p = calcP(H, F, S);
+  $('Hv').textContent = H; $('Sv').textContent = S;
+  $('fAuto').textContent = n ? `Повторение (F) = ${F}: рядом уже есть похожих отметок — ${n}.` : `Повторение (F) = ${F}: рядом похожих отметок нет.`;
+  $('pOut').textContent = `Приоритет P = ${p} — ${pLabel(p)}`;
+  return {H, F, S, p};
+}
+['H', 'S'].forEach(i => $(i).oninput = updateP);
+$('cat').onchange = updateP;
+
+let tempMarker = null;
+function openForm() {
+  if (!pending) { alert('Сначала нажмите на карте место, где находится проблема.'); return; }
+  $('mCoords').textContent = `Координаты: ${pending.lat.toFixed(5)}, ${pending.lng.toFixed(5)}`;
+  $('desc').value = ''; $('photo').value = ''; $('photoUrl').value = '';
+  $('H').value = 5; $('S').value = 5; updateP();
+  closeAllOv(); $('modal').classList.add('open'); $('desc').focus();
+}
+map.on('click', e => {
+  pending = e.latlng;
+  if (tempMarker) tempMarker.remove();
+  const box = document.createElement('div'); box.className = 'pop';
+  box.innerHTML = '<div>Место выбрано.</div><div class="row" style="margin-top:8px"><button>Добавить проблему</button></div>';
+  box.querySelector('button').onclick = openForm;
+  tempMarker = L.marker(pending).addTo(map).bindPopup(box).openPopup();
+});
+const closeModal = () => $('modal').classList.remove('open');
+$('mCancel').onclick = closeModal;
+
+
+// Уменьшаем фото, чтобы не переполнить память браузера
+function readPhoto(file) {
+  return new Promise(res => {
+    if (!file) return res('');
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 800 / Math.max(im.width, im.height)), cv = document.createElement('canvas');
+        cv.width = im.width * k; cv.height = im.height * k;
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        res(cv.toDataURL('image/jpeg', 0.7));
+      };
+      im.onerror = () => res('');
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+$('mSave').onclick = async () => {
+  const desc = $('desc').value.trim();
+  if (!desc) { alert('Опишите проблему коротко — одно-два предложения.'); $('desc').focus(); return; }
+  const photo = (await readPhoto($('photo').files[0])) || safeUrl($('photoUrl').value.trim());
+  const v = updateP();
+  const p = {id: nextId(), category: $('cat').value, description: desc, photo, lat: pending.lat, lng: pending.lng,
+    status: 'new', H: v.H, F: v.F, S: v.S, priority: v.p, createdAt: Date.now()};
+  try { await addWithRetry(p); if (tempMarker) { tempMarker.remove(); tempMarker = null; } pending = null; render(); renderAdmin(); closeModal(); }
+  catch (e) { alert('Не удалось отправить отметку. Проверьте интернет и попробуйте ещё раз.'); }
+};
+
+/* ===== Прочее ===== */
+$('btnExport').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(problems, null, 2)], {type: 'application/json'}));
+  a.download = 'ecomap-data.json'; a.click();
+};
+$('btnLoc').onclick = () => {
+  if (!navigator.geolocation) return alert('Ваш браузер не умеет определять местоположение.');
+  navigator.geolocation.getCurrentPosition(
+    p => map.setView([p.coords.latitude, p.coords.longitude], 16),
+    () => alert('Не удалось определить местоположение. Разрешите доступ в настройках браузера.'));
+};
+/* ===== Администратор ===== */
+const closeAllOv = () => document.querySelectorAll('.ov').forEach(m => m.classList.remove('open'));
+document.querySelectorAll('.ov').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeAllOv(); }));
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeAllOv);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllOv(); });
+
+function setAdminUI() {
+  $('btnAdmin').textContent = isAdmin ? 'Панель администратора' : 'Вход для администратора';
+  $('aOut').style.display = CLOUD && isAdmin ? '' : 'none';
+  $('modeNote').textContent = CLOUD ? 'Отметки видят все пользователи. Менять статусы и удалять может только администратор.'
+    : 'Демо-режим: данные хранятся только в этом браузере, а управление доступно всем. Подключите базу данных (см. инструкцию).';
+  $('aNote').textContent = CLOUD ? 'Вы вошли как администратор.' : 'Демо-режим: без сервера защиты паролем нет.';
+}
+function renderAdmin() {
+  const rows = [...problems].sort((a, b) => b.priority - a.priority).map(p =>
+    `<tr data-id="${esc(p.id)}"><td><b>${p.priority}</b></td><td>${(CATS[p.category] || CATS.other).icon}</td><td>${esc(p.description.slice(0, 70))}</td>
+     <td><select>${statusOpts(p.status)}</select></td><td><button class="danger" aria-label="Удалить">✕</button></td></tr>`).join('');
+  $('aTable').innerHTML = rows || '<tr><td>Пока нет отметок</td></tr>';
+}
+$('aTable').onchange = e => { const id = e.target.closest('tr').dataset.id; const p = problems.find(x => x.id === id); if (p) changeStatus(p, e.target.value); };
+$('aTable').onclick = e => { const b = e.target.closest('.danger'); if (b) removeProblem(b.closest('tr').dataset.id); };
+$('btnAdmin').onclick = () => { closeAllOv(); if (isAdmin) { renderAdmin(); $('mAdmin').classList.add('open'); } else { $('mLogin').classList.add('open'); $('lgMail').focus(); } };
+$('lgGo').onclick = async () => {
+  try {
+    const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {method: 'POST', headers: {apikey: SUPABASE_KEY, 'Content-Type': 'application/json'},
+      body: JSON.stringify({email: $('lgMail').value.trim(), password: $('lgPass').value})});
+    if (!r.ok) throw new Error();
+    session = await r.json(); isAdmin = true; $('lgPass').value = '';
+    setAdminUI(); render(); renderAdmin(); closeAllOv(); $('mAdmin').classList.add('open');
+  } catch (e) { alert('Неверная почта или пароль.'); }
+};
+$('aOut').onclick = () => { session = null; isAdmin = !CLOUD; setAdminUI(); render(); closeAllOv(); };
+$('aCsv').onclick = () => {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const head = ['id', 'latitude', 'longitude', 'category', 'description', 'photo', 'created_at', 'status', 'priority', 'H', 'F', 'S'];
+  const lines = problems.map(p => [p.id, p.lat, p.lng, p.category, p.description, p.photo && p.photo.startsWith('data:') ? 'photo_' + p.id + '.jpg' : p.photo,
+    new Date(p.createdAt).toISOString().slice(0, 19).replace('T', ' '), p.status, p.priority, p.H, p.F, p.S].map(q).join(','));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + [head.map(q).join(','), ...lines].join('\n')], {type: 'text/csv'}));
+  a.download = 'ecomap.csv'; a.click();
+};
+$('btnAdd').onclick = openForm;
+$('topList').onclick = e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); const p = problems.find(x => x.id === a.dataset.id); if (p) map.setView([p.lat, p.lng], 17); };
+setAdminUI();
+reload().catch(() => alert('Не удалось загрузить данные с сервера. Проверьте ключи Supabase и интернет.'));
+</script>
+</body>
+</html>
