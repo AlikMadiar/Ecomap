@@ -149,7 +149,7 @@ const STATUSES = {
 /* ===== Подключение к базе данных (Supabase) =====
    Оставьте поля пустыми — сайт работает в демо-режиме (данные только в браузере).
    Впишите адрес и публичный ключ проекта Supabase — отметки станут общими для всех. */
-const SUPABASE_URL = 'https://ylextyiqoyzddsntyoap.supabase.co/rest/v1/';  // например: https://abcd1234.supabase.co
+const SUPABASE_URL = 'https://ylextyiqoyzddsntyoap.supabase.co';  // например: https://abcd1234.supabase.co
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsZXh0eWlxb3l6ZGRzbnR5b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4NTQzMDAsImV4cCI6MjEwOTQzMDMwMH0.GG6lDL-RBtD8Z-H2f8arMIa1iZ4SH9ynIAGRskKBNAM';  // публичный ключ «anon public»
 const CLOUD = !!(SUPABASE_URL && SUPABASE_KEY);
 let session = null;
