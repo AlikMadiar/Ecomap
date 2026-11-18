@@ -71,6 +71,7 @@ h2{font-size:12px;margin:0 0 12px;color:var(--muted);text-transform:uppercase;le
 .cta #btnAdd::before{content:"+";font-size:20px;line-height:1;width:22px;height:22px;border-radius:50%;background:var(--leaf);color:#fff;display:grid;place-items:center;font-weight:700}
 .cta .hint{color:rgba(255,255,255,.75)!important;position:relative}
 #map{flex:1;min-height:0;background:#e8eee9}
+.leaflet-tile-pane{filter:saturate(.8) brightness(1.02) contrast(.97)}
 .mapwrap{flex:1;position:relative;display:flex;min-width:0}
 
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -460,8 +461,8 @@ let pending = null; // координаты клика
 /* ===== Карта ===== */
 const map = L.map('map', {zoomControl: false}).setView([CITY.lat, CITY.lng], CITY.zoom);
 L.control.zoom({position: 'topright'}).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {maxZoom: 19, subdomains: 'abcd',
-  attribution: '© участники <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19,
+  attribution: '© участники <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
 const layer = L.layerGroup().addTo(map);
 
 function pinIcon(p) {
